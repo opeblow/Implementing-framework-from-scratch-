@@ -39,30 +39,78 @@ class GoogleSearchTool(Tool):
         try:
             print(f"\n Searching Google for :{query}")
             url=(f" https://www.google.com/search?q={quote_plus(query)}")
-            headers={'User-Agent':'Mozilla/5.0(Windows NT 10.0; Win64;x64)AppleWebKit/537.36'}
+            headers={
+                'User-Agent':'Mozilla/5.0(Windows NT 10.0; Win64;x64)AppleWebKit/537.36',
+                'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language':'en-US,en;q=0.5',
+                'Accept-Encoding':'gzip,deflate',
+                'DNT':'1',
+                'Connection':'keep=alive',
+                'Upgrade-Insecure-Requests':'1'
+            }
             response=requests.get(url,headers=headers,timeout=10)
+            response.raise_for_status()
             soup=BeautifulSoup(response.content,'html.parser')
-
             results=[]
-            for g in soup.find_all('div',class_='g')[:num_results]:
+            search_results=soup.find_all('div',class_='g')
+            if not search_results:
+                search_results=soup.find_all('div',{'data-sokoban-container':True})
+            if not search_results:
+                search_results=soup.find_all('div',class_='tF2Cxc')
+            for g in search_results[:num_results]:
                 try:
-                    title=g.find('h3').text if g.find('h3') else "No title"
-                    link=g.find('a')['href']if g.find('a')else "No link"
-                    snippet=g.find('div',class_='VwiC3b').text if g.find('div',class_='VwiC3b')else "No description"
-                    results.append(
-                        {
-                            "title":title,
-                            "link":link,
-                            "snippet":snippet
-                        }
-                    )
-                except:
+                    title_elem=g.find('h3')
+                    if not title_elem:
+                        continue
+                    title=title_elem.get_text()
+                    link_elem=g.find('a')
+                    if not link_elem or 'href' not in link_elem.attrs:
+                        continue
+                    link=link_elem['href']
+
+                    snippet=""
+                    snippet_elem=g.find('div',class_='VwiC3b')
+                    if not snippet_elem:
+                        snippet_elem=g.find('span',class_='aCOpRe')
+                    if not snippet_elem:
+                        snippet_elem=g.find('div',class_='s')
+                    if snippet_elem:
+                        snippet=snippet_elem.get_text()
+                    if snippet_elem:
+                        snippet=snippet_elem.get_text()
+                    if title and link:
+                        results.append(
+                            {
+                                "title":title,
+                                "link":link,
+                                "snippet":snippet or "No description available"
+                            }
+                        )
+                except Exception as e:
+                    print(f"Skipping result due to:{e}")
                     continue
+            if len(results)==0:
+                print("No results found.Google may be blocking requests.")
+                return [
+                    {
+                        "title":"Search limitation",
+                        "snippet":f"Unable to fetch results for '{query}'.Try using the direct 'wiki' command for encyclopedia info,or visit Google directly",
+                        "link":f"https://www.google.com/search?q={quote_plus(query)}"
+                    }
+                ]
             print(f"Found {len(results)} results")
             return results
         except Exception as e:
             print(f"Error:{e}")
-            return [{"error":str(e)}]
+            return [
+                {
+                    "error":str(e),
+                    "title":"Search failed",
+                    "snippet":f"Could not complete search for '{query}'.Error;{str(e)}",
+                    "link":f"https://www.google.com/search?q={quote_plus(query)}"
+                }
+            ]
+            
         
 class wikipediaTool(Tool):
     def __init__(self):
@@ -72,23 +120,57 @@ class wikipediaTool(Tool):
         try:
             print(f"\n Fetching wikipedia :{topic}")
             url="https://en.wikipedia.org/api/rest_v1/page/summary/" + quote_plus(topic)
-            response=requests.get(url,timeout=10)
-            data=response.json()
-
+            headers={
+                'User-Agent':'ResearchAgent/1.0(Educational Purpose)'
+            }
+            response=requests.get(url,headers=headers,timeout=10)
+            if response.status_code==404:
+                return{
+                    'error':f"Article not found for '{topic}'",
+                    "status":"not_found",
+                    "suggestions":"Try rephrasing your search term"
+                }
+            response.raise_for_status()
+            try:
+                data=response.json()
+            except json.JSONDecodeError as je:
+                print(f"JSON decode error:{je}")
+                print(f"Response content:{response.text[:200]}")
+                return {
+                    "error":"Invalid response from wikipedia",
+                    "status":"parse_error"
+                }
             if 'title' not in data:
-                return {"error":"Article not found"}
+                return {
+                    "error":"Article not found or invalid response",
+                    "status":"Invalid response"
+                }
             result={
-                "title":data.get('title'),
-                "summary":data.get('extract'),
-                "url":data.get('content_urls',{}).get('desktop',{}).get('page'),
+                "title":data.get('title','unknown'),
+                "summary":data.get('extract','No summary available'),
+                "url":data.get('content_urls',{}).get('desktop',{}).get('page',''),
                 "status":"success"
             }
-            print(f"Retrived :{result['title']}")
+            print(f"Retrieved:{result['title']}")
             return result
+        
+        except requests.exceptions.RequestException as e:
+            print(f"Network Error:{e}")
+            return {
+                "error":f"Network error:{str(e)}",
+                "status":"network_error",
+                "topic":topic
+            }
+        
         except Exception as e:
             print(f"Error:{e}")
-            return{"error":str(e)}
+            return {
+                "error":str(e),
+                "status":"error",
+                "topic":topic
+            }
         
+
 class NewsScrapperTool(Tool):
     def __init__(self):
         super().__init__("gets_news","Gets latest news headlines.")
@@ -97,26 +179,55 @@ class NewsScrapperTool(Tool):
         try:
             print(f"\n Fetching news:{topic}")
             url=f"https://www.google.com/search?q={quote_plus(topic)}"
-            headers={'User-Agent':'Mozilla/5.0(Windows NT 10.0; Win64;x64)AppleWebKit/537.36'}
+            headers={'User-Agent':'Mozilla/5.0(Windows NT 10.0; Win64;x64)AppleWebKit/537.36(KHTML,like Gecko)Chrome/91.0.4472.124 Safari/537.36'}
             response=requests.get(url,headers=headers,timeout=10)
+            response.raise_for_status()
             soup=BeautifulSoup(response.content,'html.parser')
 
             articles=[]
             for article in soup.find_all('article')[:10]:
                 try:
                     title_element=article.find('a')
-                    if title_element:
-                        articles.append({
-                            "title":title_element.text,
-                            "link":"https://news.google.com" + title_element['href'][1:]
-                        })
-                except :
+                    if title_element and title_element.get_text(strip=True):
+                        href=title_element.get('href','')
+                        if href.startswith('./'):
+                            href='https://news.google.com' + href[1:]
+                        elif not href.startswith('http'):
+                            href='https://news.google.com' + href
+                        articles.append(
+                            {
+                                "title":title_element.get_text(strip=True),
+                                "link":href
+                            }
+                        )
+                except Exception as e:
                     continue
+            if len(articles)==0:
+                for link in soup.find_all('a',href=True)[:15]:
+                    try:
+                        text=link.get_text(strip=True)
+                        if len(text) >20 and './articles/' in link['href']:
+                            href='https://news.google.com' + link['href'][1:]
+                    except:
+                        continue
+            if len(articles)==0:
+                return{
+                    'title':f"News search for '{topic}'",
+                    "link":url,
+                    "note":"Unable to fetch news automatically.Visit the link to see results."
+                }
             print(f"Found {len(articles)}articles")
-            return articles
-        except Exception as e :
-            print(F"Error:{e}")
-            return[{"error":str(e)}]
+            return articles[:10]
+        except Exception as e:
+            print(f"Error:{e}")
+            return [
+                {
+                    "error":str(e),
+                    "title":f"Could not fetch news for '{topic}'",
+                    "link":f"https://news.google.com/search?q={quote_plus(topic)}"
+                }
+            ]
+                            
         
 class WeatherTool(Tool):
     def __init__(self):

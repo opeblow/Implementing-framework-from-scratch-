@@ -37,7 +37,7 @@ You: wiki Neuralink
 Assistant: Neuralink is an American neurotechnology company founded by Elon Musk...
    Read more: https://en.wikipedia.org/wiki/Neuralink
 
-git clone https://github.com/yourusername/webpull-agent.git
+git clone https://github.com/opeblow/implementing-framework-from-scratch.git
 cd webpull-agent
 
 OPENAI_API_KEY=sk-your-actual-key-here

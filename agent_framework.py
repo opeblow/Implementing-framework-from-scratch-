@@ -17,7 +17,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 class Intelligence:
     """This handles AI reasoning and makes decision"""
     
-    def _init_(self, model="gpt-4o"):
+    def __init__(self, model="gpt-4o"):
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
@@ -57,7 +57,7 @@ class Intelligence:
 class Memory:
     """Stores and retrieves conversation history"""
     
-    def _init_(self, max_history: int = 100):
+    def __init__(self, max_history: int = 100):
         self.conversation_history: List[Dict[str, Any]] = []
         self.long_term_storage: Dict[str, Any] = {}
         self.max_history = max_history
@@ -115,7 +115,7 @@ class Memory:
 class Tool:
     """Base class for agent tools"""
     
-    def _init_(self, name: str, description: str):
+    def __init__(self, name: str, description: str):
         self.name = name
         self.description = description
 
@@ -127,7 +127,7 @@ class Tool:
 class ToolRegistry:
     """Takes care of available tools for the agent"""
     
-    def _init_(self):
+    def __init__(self):
         self.tools: Dict[str, Tool] = {}
 
     def register(self, tool: Tool):
@@ -167,7 +167,7 @@ class ToolRegistry:
 class ValidationSchema:
     """Handles data validation"""
     
-    def _init_(self):
+    def __init__(self):
         self.schemas: Dict[str, type[BaseModel]] = {}
 
     def register_schema(self, name: str, schema: type[BaseModel]):
@@ -207,7 +207,7 @@ class ValidationSchema:
 class Recovery:
     """Handles errors and provides fallback mechanism"""
     
-    def _init_(self, max_retries: int = 3):
+    def __init__(self, max_retries: int = 3):
         self.max_retries = max_retries
         self.error_log: List[Dict] = []
 
@@ -269,7 +269,7 @@ class Recovery:
 class FeedbackControl:
     """Manages human-in-the-loop approval workflows"""
     
-    def _init_(self, auto_approve_threshold: float = 0.0):
+    def __init__(self, auto_approve_threshold: float = 0.0):
         self.auto_approve_threshold = auto_approve_threshold
         self.approval_log: List[Dict] = []
 
@@ -326,7 +326,7 @@ class FeedbackControl:
 class Agent:
     """Universal AI Agent with all 6 building blocks"""
     
-    def _init_(self, name: str, system_prompt: str, model: str = "gpt-4o", require_approval: bool = False, max_retries: int = 3, max_history: int = 100):
+    def __init__(self, name: str, system_prompt: str, model: str = "gpt-4o", require_approval: bool = False, max_retries: int = 3, max_history: int = 100):
         self.name = name
         self.system_prompt = system_prompt
         self.require_approval = require_approval
